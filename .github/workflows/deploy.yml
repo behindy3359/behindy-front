@@ -1,0 +1,208 @@
+name: Deploy Frontend
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest  # GitHub-hosted runner에서 빌드
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/behindy-frontend:latest
+            ${{ secrets.DOCKER_USERNAME }}/behindy-frontend:${{ github.sha }}
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}
+            NEXT_PUBLIC_AI_URL=${{ secrets.NEXT_PUBLIC_AI_URL }}
+            NEXT_PUBLIC_DEV_MODE=${{ secrets.NEXT_PUBLIC_DEV_MODE }}
+            NEXT_PUBLIC_LOG_LEVEL=${{ secrets.NEXT_PUBLIC_LOG_LEVEL }}
+            NEXT_PUBLIC_TOKEN_KEY=${{ secrets.NEXT_PUBLIC_TOKEN_KEY }}
+            NEXT_PUBLIC_REFRESH_TOKEN_KEY=${{ secrets.NEXT_PUBLIC_REFRESH_TOKEN_KEY }}
+            NEXT_PUBLIC_APP_NAME=${{ secrets.NEXT_PUBLIC_APP_NAME }}
+            NEXT_PUBLIC_APP_VERSION=${{ secrets.NEXT_PUBLIC_APP_VERSION }}
+          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/behindy-frontend:buildcache
+          cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/behindy-frontend:buildcache,mode=max
+          shm-size: 2g
+
+      - name: Image digest
+        run: echo "Image pushed successfully"
+
+  deploy:
+    runs-on: self-hosted
+    needs: build
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Pull latest image
+        run: |
+          docker pull ${{ secrets.DOCKER_USERNAME }}/behindy-frontend:latest
+          echo "Image pulled successfully"
+
+      - name: Sync ops repository
+        run: |
+          if [ ! -d ~/behindy-ops/.git ]; then
+            echo "behindy-ops repository not found"
+            exit 1
+          fi
+          cd ~/behindy-ops
+          git pull --ff-only
+
+      - name: Determine deployment color
+        id: color
+        run: |
+          cd ~/behindy-ops
+          if docker ps --filter "name=^frontend$" --format "{{.Names}}" | grep -q "^frontend$"; then
+            echo "current=blue" >> $GITHUB_OUTPUT
+            echo "target=green" >> $GITHUB_OUTPUT
+            echo "target_container=frontend-green" >> $GITHUB_OUTPUT
+          else
+            echo "current=green" >> $GITHUB_OUTPUT
+            echo "target=blue" >> $GITHUB_OUTPUT
+            echo "target_container=frontend" >> $GITHUB_OUTPUT
+          fi
+          echo "Current: $(cat $GITHUB_OUTPUT | grep current | cut -d= -f2)"
+          echo "Target: $(cat $GITHUB_OUTPUT | grep target | cut -d= -f2)"
+
+      - name: Start new container (Green deployment)
+        run: |
+          cd ~/behindy-ops
+          # Green 컨테이너 시작
+          if docker ps -a --format '{{.Names}}' | grep -Fxq "${{ steps.color.outputs.target_container }}"; then
+            docker rm -f "${{ steps.color.outputs.target_container }}"
+          fi
+          docker run -d \
+            --name ${{ steps.color.outputs.target_container }} \
+            --network behindy-ops_internal \
+            --restart always \
+            --memory=2G \
+            --memory-reservation=1G \
+            -e NEXT_PUBLIC_API_URL="${{ secrets.NEXT_PUBLIC_API_URL }}" \
+            -e NEXT_PUBLIC_AI_URL="${{ secrets.NEXT_PUBLIC_AI_URL }}" \
+            -e NEXT_PUBLIC_DEV_MODE="${{ secrets.NEXT_PUBLIC_DEV_MODE }}" \
+            -e NEXT_PUBLIC_LOG_LEVEL="${{ secrets.NEXT_PUBLIC_LOG_LEVEL }}" \
+            -e NEXT_PUBLIC_TOKEN_KEY="${{ secrets.NEXT_PUBLIC_TOKEN_KEY }}" \
+            -e NEXT_PUBLIC_REFRESH_TOKEN_KEY="${{ secrets.NEXT_PUBLIC_REFRESH_TOKEN_KEY }}" \
+            -e NEXT_PUBLIC_APP_NAME="${{ secrets.NEXT_PUBLIC_APP_NAME }}" \
+            -e NEXT_PUBLIC_APP_VERSION="${{ secrets.NEXT_PUBLIC_APP_VERSION }}" \
+            -e TZ=Asia/Seoul \
+            -v /etc/localtime:/etc/localtime:ro \
+            -v /etc/timezone:/etc/timezone:ro \
+            ${{ secrets.DOCKER_USERNAME }}/behindy-frontend:latest
+          echo "New container started: ${{ steps.color.outputs.target_container }}"
+
+      - name: Wait for service
+        run: |
+          echo "Waiting for ${{ steps.color.outputs.target_container }} to start..."
+          sleep 15
+
+      - name: Health check (internal)
+        run: |
+          echo "Running internal health check for ${{ steps.color.outputs.target_container }}..."
+          for i in {1..15}; do
+            if docker exec nginx curl -sf http://${{ steps.color.outputs.target_container }}:3000 >/dev/null 2>&1; then
+              echo "✓ ${{ steps.color.outputs.target_container }} is responding internally"
+              break
+            fi
+            echo "Waiting for internal health... ($i/15)"
+            sleep 3
+          done
+
+      - name: Switch Nginx upstream
+        run: |
+          cd ~/behindy-ops
+          echo "Switching Nginx to route traffic to ${{ steps.color.outputs.target_container }}..."
+
+          cleanup_container() {
+            local name="$1"
+            if docker ps -a --format '{{.Names}}' | grep -Fxq "$name"; then
+              docker rm -f "$name"
+            fi
+          }
+
+          if [ "${{ steps.color.outputs.target }}" = "green" ]; then
+            cleanup_container frontend-blue
+            if docker ps -a --format '{{.Names}}' | grep -Fxq frontend; then
+              docker rename frontend frontend-blue
+            fi
+            docker rename frontend-green frontend
+            echo "✓ Switched to Green deployment"
+          else
+            cleanup_container frontend-green
+            if docker ps -a --format '{{.Names}}' | grep -Fxq frontend-blue; then
+              docker rename frontend-blue frontend
+              echo "✓ Switched to Blue deployment (reuse frontend-blue)"
+            else
+              echo "✓ No frontend-blue container to promote; ${{ steps.color.outputs.target_container }} already serves traffic"
+            fi
+          fi
+
+      - name: Reload nginx and verify routing
+        run: |
+          cd ~/behindy-ops
+          ./scripts/reconnect-nginx.sh frontend
+
+      - name: Health check (external)
+        run: |
+          echo "Running external health check via https://behindy.me..."
+          sleep 5
+          for i in {1..10}; do
+            if curl -s https://behindy.me/ >/dev/null 2>&1; then
+              echo "✓ Frontend is responding externally"
+              break
+            fi
+            echo "Waiting for external health... ($i/10)"
+            sleep 3
+          done
+
+      - name: Stop old container
+        run: |
+          echo "Stopping old container..."
+          if [ "${{ steps.color.outputs.current }}" = "blue" ]; then
+            docker stop frontend-blue 2>/dev/null || true
+            docker rm frontend-blue 2>/dev/null || true
+            echo "✓ Old blue container stopped"
+          else
+            docker stop frontend-green 2>/dev/null || true
+            docker rm frontend-green 2>/dev/null || true
+            echo "✓ Old green container stopped"
+          fi
+
+      - name: Cleanup old images
+        run: |
+          echo "Cleaning up old frontend images..."
+          # 현재 프로젝트의 이미지만 필터링하여 최신 2개 제외하고 삭제
+          docker images ${{ secrets.DOCKER_USERNAME }}/behindy-frontend --format "{{.ID}} {{.CreatedAt}}" | \
+            sort -rk 2 | \
+            awk 'NR>2 {print $1}' | \
+            xargs -r docker rmi -f || true
+          # dangling 이미지 정리
+          docker image prune -f
+          echo "Old images cleaned up"
+
+      - name: Display status
+        run: |
+          echo "=== Deployment Summary ==="
+          docker ps --filter "name=frontend" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+          echo ""
+          echo "Frontend deployed successfully!"
