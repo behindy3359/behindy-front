@@ -4,17 +4,14 @@
 
 ## 기술 스택
 
-- **Framework**: Next.js 15.3.1 (App Router)
+- **Framework**: Next.js 15.3.1
 - **Language**: TypeScript 5
 - **UI Library**: React 19
 - **Styling**: styled-components 6.1
 - **State Management**: Zustand 5.0
-- **Data Fetching**: TanStack Query 5.80
 - **Form Management**: React Hook Form 7.57 + Yup 1.6
-- **HTTP Client**: Axios 1.9
 - **WebSocket**: STOMP.js 7.2 + SockJS Client 1.6
 - **Animation**: Framer Motion 12.17
-- **Markdown**: react-markdown 10.1 + remark-gfm
 
 ## 주요 기능
 
@@ -188,18 +185,9 @@ export function useGameStatus() {
 - React Query 캐싱 전략
 - 메모이제이션 (useMemo, useCallback)
 
-## 접근성
-
-- 시맨틱 HTML 사용
-- ARIA 속성 적용
-- 키보드 네비게이션 지원
-- 스크린 리더 호환
-
 ## 아키텍처
 
-이 프로젝트는 멀티레포지토리 아키텍처를 사용합니다.
-
-- Frontend (이 레포): Next.js 기반 UI 레이어
+- Frontend: Next.js 기반 UI 레이어
 - Backend: Spring Boot 기반 API 서버 및 비즈니스 로직
 - Story (LLM Server): FastAPI 기반 AI 스토리 생성 서버
 - Ops: Docker Compose 기반 인프라 관리
@@ -209,7 +197,3 @@ export function useGameStatus() {
 - [behindy-back](https://github.com/behindy3359/behindy-back) - Spring Boot 백엔드 API 서버
 - [behindy-story](https://github.com/behindy3359/behindy-story) - FastAPI AI 스토리 생성 서버
 - [behindy-ops](https://github.com/behindy3359/behindy-ops) - 인프라 관리 (PostgreSQL, Redis, Nginx)
-
-## 라이선스
-
-MIT License
