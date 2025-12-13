@@ -4,14 +4,14 @@
 
 ## 기술 스택
 
-- **Framework**: Next.js 15.3.1
+- **Framework**: Next.js 15.3.8
 - **Language**: TypeScript 5
-- **UI Library**: React 19
+- **UI Library**: React 19.2
 - **Styling**: styled-components 6.1
 - **State Management**: Zustand 5.0
-- **Form Management**: React Hook Form 7.57 + Yup 1.6
+- **Data Fetching**: React Query 5.80
+- **Form Management**: React Hook Form 7.57 + Yup 1.6 + Hookform Resolvers 5.1
 - **WebSocket**: STOMP.js 7.2 + SockJS Client 1.6
-- **Animation**: Framer Motion 12.17
 
 ## 주요 기능
 
@@ -120,18 +120,29 @@ src/
 │   ├── (auth)/            # 인증 관련 페이지
 │   ├── (game)/            # 게임 관련 페이지
 │   ├── (community)/       # 커뮤니티 페이지
+│   ├── character/         # 캐릭터 관리
+│   ├── multiplayer/       # 멀티플레이 기능
+│   ├── about/             # 소개 및 문서
 │   └── layout.tsx         # 루트 레이아웃
-├── features/              # 기능별 모듈
+├── features/              # 기능별 모듈 (도메인 기반)
 │   ├── auth/             # 인증
-│   ├── game/             # 게임
-│   └── community/        # 커뮤니티
+│   ├── game/             # 게임 플레이
+│   ├── community/        # 커뮤니티
+│   ├── metro/            # 지하철 정보
+│   ├── multiplayer/      # 멀티플레이 WebSocket
+│   ├── homepage/         # 홈페이지
+│   └── about/            # 소개 페이지
 ├── shared/               # 공통 모듈
-│   ├── components/       # 공통 컴포넌트
+│   ├── components/       # 공통 UI 컴포넌트
 │   ├── hooks/           # 커스텀 훅
+│   ├── store/           # Zustand 상태관리
+│   ├── providers/       # Context/Provider
 │   ├── utils/           # 유틸리티 함수
-│   ├── stores/          # Zustand 스토어
-│   └── api/             # API 클라이언트
-└── styles/              # 전역 스타일
+│   ├── types/           # 타입 정의
+│   └── styles/          # 전역 스타일 및 테마
+├── config/              # 설정 파일
+├── middleware.ts        # Next.js 미들웨어
+└── test/               # 테스트 설정
 ```
 
 ## 코드 컨벤션
@@ -180,10 +191,13 @@ export function useGameStatus() {
 
 ## 성능 최적화
 
-- Next.js Image 컴포넌트 사용
+- Next.js Image 컴포넌트 사용 (AVIF, WebP 포맷 지원)
 - 동적 import를 통한 코드 스플리팅
 - React Query 캐싱 전략
 - 메모이제이션 (useMemo, useCallback)
+- Bundle Analyzer 지원 (`npm run build:analyze`)
+- 주요 라이브러리 최적화 (lucide-react, framer-motion, @tanstack/react-query)
+- 메모리 할당 최적화 (4GB heap size)
 
 ## 아키텍처
 
