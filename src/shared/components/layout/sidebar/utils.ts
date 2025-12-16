@@ -53,24 +53,24 @@ export const isRouteActive = (itemPath: string, currentPath: string): boolean =>
 export const sidebarAnimationVariants = {
   open: {
     width: 280,
-    transition: { duration: 0.3, ease: 'easeInOut' }
+    transition: { duration: 0.3 }
   },
   closed: {
     width: 60,
-    transition: { duration: 0.3, ease: 'easeInOut' }
+    transition: { duration: 0.3 }
   }
-};
+} as const;
 
 export const sidebarMobileAnimationVariants = {
   open: {
     x: 0,
-    transition: { duration: 0.3, ease: 'easeInOut' }
+    transition: { duration: 0.3 }
   },
   closed: {
     x: '-100%',
-    transition: { duration: 0.3, ease: 'easeInOut' }
+    transition: { duration: 0.3 }
   }
-};
+} as const;
 
 export const themeUtils = {
   save: (theme: 'light' | 'dark'): void => {
