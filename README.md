@@ -4,14 +4,11 @@
 
 ## 기술 스택
 
-- **Framework**: Next.js 15.3.8
-- **Language**: TypeScript 5
-- **UI Library**: React 19.2
-- **Styling**: styled-components 6.1
-- **State Management**: Zustand 5.0
-- **Data Fetching**: React Query 5.80
-- **Form Management**: React Hook Form 7.57 + Yup 1.6 + Hookform Resolvers 5.1
-- **WebSocket**: STOMP.js 7.2 + SockJS Client 1.6
+- **Next.js 15** (React 19, TypeScript)
+- **Zustand** - 경량 상태 관리
+- **React Query** - 서버 상태 관리
+- **styled-components** - CSS-in-JS
+- **WebSocket (STOMP)** - 실시간 통신
 
 ## 주요 기능
 
@@ -66,7 +63,6 @@ NEXT_PUBLIC_APP_VERSION=1.0.0
 
 ### 요구사항
 - Node.js 18+
-- npm 또는 yarn
 
 ### 실행
 ```bash
